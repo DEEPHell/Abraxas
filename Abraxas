@@ -1,0 +1,187 @@
+#!/bin/python3
+#-*-coding: utf-8-*-
+from subprocess import run,PIPE
+from json import dumps,loads
+from datetime import datetime
+from ipgrab.ipgrab import Client
+from requests import get
+from getmac import get_mac_address
+from time import sleep
+from hashlib import sha1
+from random import random
+from argparse import ArgumentParser
+from io import open
+#.from time import time
+import csv
+import os
+# import django
+# this program needs the termux api
+default_iter = 1
+commands = ( "termux-battery-status","termux-wifi-scaninfo","termux-wifi-connectioninfo" )
+mk_serv = "python -m http.serv ~/www/serv"
+try:
+    ip = Client().external_ip()
+except:
+    print('Error: Internet connection not found')
+    print('activate ?')
+    inp = input('[Y/N]')
+    if inp.upper() == 'Y':
+        run(['termux-wifi-enable','true'])
+    else:
+        exit()
+mac_scanned = {}
+detal_mac_scanned = {}
+def run_server():
+    pass
+def eject_scr():
+    pass
+def rest(rest_type,default_option= 0,output_format='json',ip=ip,mac=get_mac_address()):
+    HIT = {
+        "GET_LOCATION":[f' http://ip-api.com/{output_format}/{ip}?fields=status,continent,country,region,regionName,city,district,zip,timezone,isp,org,reverse,mobile,proxy,query'],
+        "API_ASCII_IMAGE":[],
+        "GET_SPECIFIC_LOCATION":['']
+        }
+    HIT_KEYS = [ x for x in HIT.keys()]
+    if HIT_KEYS[0] == rest_type:
+        #TODO: Funciona con/por ip
+        # default_option es la api a ocupae de las que tenemos por que es una lista entonces tenemos que recorrerla con un numero; y por eso lo hacemos. por que no hay solo una opcion; esto es para aumentar el exito de determinar el destino de donde es ...
+        catch = get(HIT[HIT_KEYS[0]][default_option])
+        catch.raise_for_status()
+        if output_format == 'json':
+            util_response = catch.json()
+            return util_response
+        elif output_format == 'csv':
+            util_response = catch.text
+            return util_response
+    if HIT_KEYS[1] == rest_type:
+        """ no se que hacer aqui): """
+        pass
+    if HIT_KEYS[2] == rest_type:
+        catch = get(HIT[HIT_KEYS[2]][default_option])
+        catch.raise_for_status()
+        if output_format == 'json':
+            return catch.json()
+        elif output_format == 'csv':
+            return catch.text
+    else:
+        raise NameError(f'Error: {rest_type}: Invalid rest_type')
+
+
+def get_new_id():
+    new =  sha1(os.environ.get('COUNTER').encode('utf-8')).hexdigest() + '&&'
+    return new
+"""
+def load_fields():
+    files = [ sha1(x).hexdigest() + ':log.json' for x in range(os.environ.get('COUNTER'))]
+    for file in files:
+        with open(file,'r') as fq:
+            fq.read()
+            pass
+"""
+
+def formating_ssid(block):
+    """ this fuction used if the ssid was oculted """
+    if 'str' in str(type(block)):
+        return block
+    if block.get('ssid',False) == False:
+        block['ssid'] = f'crypto_ssid:{sha1(block["bssid"].encode("utf-8")).hexdigest()}'
+        return block['ssid']
+    else:
+        return block['ssid']
+
+def start_app():
+    collect = os.path.join(os.environ.get('TMPDIR',False),'elfs_life.txt')
+    with open(collect,'r+') as cook:
+        collect = cook.read()
+        if collect == '':
+           raise NameError(f'unspected: {collect} ; <Not Valwe> ')
+        else:
+            pass
+        cook.seek(0)
+        cook.write(str(int("".join(collect.strip(f'\n'))) + 1))
+    os.environ['COUNTER'] = str(collect)
+
+def GET_FIRST_POINT():
+    util_response = rest("GET_LOCATION",output_format='json')
+    if not util_response['status'] == 'success':
+        raise NameError('Error: the status code of the API was not fine, try again')
+    geo = rest("GET_SPECIFIC_LOCATION",output_format='json')
+    util_response['geolocation'] = geo
+    return util_response
+    # run(['termux-open','https://geo
+def name_list(li,mac_discover=False):
+    data_c = {}
+    for x in li:
+        if 'dict' in str(type(x)):
+            if x.get('ssid',False) == False:
+                x['ssid'] = formating_ssid(x)
+            else: pass
+            if mac_discover:
+                x['details'] = rest(rest_type="GET_SPECIFIC_LOCATION",mac=data[formating_ssid(x)]['bssid'],output_format='json')
+            yield x
+def scann_eject(data,discover_location=False):
+    if discover_location:
+        data = name_list(data,True)
+        return data
+    else:
+        data = name_list(data)
+        return data
+def search_fabricant(mac):
+    q = os.environ.get('ABRAXAS',None)
+    q = open(q,'r')
+    if q:
+        for x in csv.reader(q):
+            if x[1] == "".join(mac.split(':')[:3]).upper():
+                return x[2]
+            else:
+                return eject_scr(mac)
+    else:
+        raise NameError('alert: the file data was corrupted')
+def save_info(data,formating='dumps'):
+    with open(f'{get_new_id()[:8]}.{formating}','w') as fil:
+        fil.write(dumps(data))
+def prog(discover_mac=False):
+    start_app()
+    for comand in commands:
+        data = run([comand],stdout=PIPE,stderr=PIPE)
+        stdout = loads(data.stdout)
+        stderr = data.stderr
+        if stderr:
+            raise NameError(f'{stderr}')
+        if stdout:
+            if comand == commands[1] or comand == commands[2]:
+                if discover_mac:
+                    for q in scann_eject(stdout,discover_mac=True):
+                        print(q)
+                        save_info(q)
+                else:
+                    for q in scann_eject(stdout):
+                        print(q)
+                        save_info(q)
+def CLI():
+    """LA INTERFAZ CLI ..."""
+    Abraxas = ArgumentParser(description='')
+    Abraxas.add_argument('time',help='configura el tiempo de escucha maximo: 100 ',type=int)
+    Abraxas.add_argument('-i','--iter',help='itera el tiempo',type=int)
+    Abraxas.add_argument('-g','--generate',help='genera el codigo malicioso con las redes recopiladas; requiere una ruta')
+    Abraxas.add_argument('-o','--out',help='especifica el formato de salida del codigo pmalicioso')
+    Abraxas.add_argument('-oi','--out_info',help='especifica el formato de salida del informe')
+    Abraxas.add_argument('-d','--discover_mac',help='descubrir la mac en el mapa ( sacar su ubicacion )')
+    abraxas = Abraxas.parse_args()
+    count = 0
+    for x in range(abraxas.time):
+        print(f'{count} vuelta')
+        count += 1
+        if abraxas.iter:
+            sleep(abraxas.iter)
+        elif abraxas.iter == None:
+            sleep(default_iter)
+        if abraxas.discover_mac:
+            prog(discover_mac=True)
+        else:
+            prog()
+    if abraxas.generate:
+        if Abraxas.out:
+            pass
+if __name__ == '__main__':
+    CLI()
